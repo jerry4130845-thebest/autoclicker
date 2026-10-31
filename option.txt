@@ -1,0 +1,22 @@
+{
+    "cps_mode": "fixed",
+    "cps_fixed": 10.0,
+    "cps_min": 5.0,
+    "cps_max": 15.0,
+    "click_button": "left",
+    "auto_hotkey": "F6",
+    "booster_left_enabled": false,
+    "booster_left_hotkey": "3",
+    "booster_left_count": 2,
+    "booster_left_min": 1,
+    "booster_left_max": 3,
+    "booster_left_use_random": false,
+    "booster_right_enabled": false,
+    "booster_right_hotkey": "2",
+    "booster_right_count": 2,
+    "booster_right_min": 1,
+    "booster_right_max": 3,
+    "booster_right_use_random": false,
+    "wasd_left_boost_enabled": true,
+    "wasd_right_boost_enabled": true
+}
