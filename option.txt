@@ -5,18 +5,66 @@
     "cps_max": 15.0,
     "click_button": "left",
     "auto_hotkey": "F6",
-    "booster_left_enabled": false,
+    "booster_left_enabled": true,
     "booster_left_hotkey": "3",
     "booster_left_count": 2,
     "booster_left_min": 1,
     "booster_left_max": 3,
     "booster_left_use_random": false,
-    "booster_right_enabled": false,
+    "booster_right_enabled": true,
     "booster_right_hotkey": "2",
     "booster_right_count": 2,
     "booster_right_min": 1,
     "booster_right_max": 3,
     "booster_right_use_random": false,
     "wasd_left_boost_enabled": true,
-    "wasd_right_boost_enabled": true
+    "wasd_right_boost_enabled": true,
+    "managed_keys": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "x",
+        "c",
+        "r",
+        "f"
+    ],
+    "booster_skip_rules": [
+        {
+            "key": "x",
+            "mode": "跳过一次",
+            "side": "左键"
+        },
+        {
+            "key": "1",
+            "mode": "连续跳过",
+            "side": "左键"
+        },
+        {
+            "key": "2",
+            "mode": "连续跳过",
+            "side": "右键"
+        },
+        {
+            "key": "3",
+            "mode": "连续跳过",
+            "side": "右键"
+        },
+        {
+            "key": "5",
+            "mode": "连续跳过",
+            "side": "右键"
+        },
+        {
+            "key": "x",
+            "mode": "跳过一次",
+            "side": "左键"
+        },
+        {
+            "key": "c",
+            "mode": "跳过一次",
+            "side": "左键"
+        }
+    ]
 }

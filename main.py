@@ -7,10 +7,11 @@ from pynput import keyboard, mouse
 from pynput.keyboard import Key, KeyCode
 from pynput.mouse import Button
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtGui import QCloseEvent, QAction
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -19,10 +20,13 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -53,6 +57,174 @@ class HotkeyDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+class KeyTagWidget(QFrame):
+    deleted = pyqtSignal(str)
+
+    def __init__(self, key_name: str, parent=None):
+        super().__init__(parent)
+        self.key_name = key_name
+        self.setObjectName("keyTag")
+        self.setStyleSheet("""
+            QFrame#keyTag {
+                background-color: #45475a;
+                border: 1px solid #585b70;
+                border-radius: 6px;
+                padding: 2px 6px;
+            }
+        """)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(6)
+
+        self.label = QLabel(key_name)
+        self.label.setStyleSheet("color: #cdd6f4; font-weight: bold; font-size: 13px;")
+        layout.addWidget(self.label)
+
+        self.del_btn = QPushButton("×")
+        self.del_btn.setFixedSize(18, 18)
+        self.del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.del_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #f38ba8;
+                font-weight: bold;
+                font-size: 14px;
+                padding: 0px;
+                margin: 0px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #f38ba8;
+                color: #1e1e2e;
+                border-radius: 9px;
+            }
+        """)
+        self.del_btn.clicked.connect(lambda: self.deleted.emit(self.key_name))
+        layout.addWidget(self.del_btn)
+        self.del_btn.hide()
+
+    def enterEvent(self, event):
+        super().enterEvent(event)
+        self.del_btn.show()
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self.del_btn.hide()
+
+
+class BoosterSkipCard(QFrame):
+    request_delete = pyqtSignal(object)
+    request_add = pyqtSignal(object)
+    changed = pyqtSignal()
+
+    def __init__(self, parent_window, initial_keys=None, parent=None):
+        super().__init__(parent)
+        self.parent_window = parent_window
+        self.setObjectName("card")
+        self.setStyleSheet("""
+            QFrame#card {
+                background-color: #313244;
+                border: 1px solid #45475a;
+                border-radius: 12px;
+            }
+        """)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(10)
+
+        lbl1 = QLabel("当按下")
+        lbl1.setStyleSheet("color: #cdd6f4; font-size: 13px;")
+        layout.addWidget(lbl1)
+
+        self.key_combo = QComboBox()
+        self.key_combo.setMinimumWidth(80)
+        self.key_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #45475a;
+                color: #cdd6f4;
+                border: 1px solid #585b70;
+                border-radius: 6px;
+                padding: 4px 8px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #313244;
+                color: #cdd6f4;
+                selection-background-color: #89b4fa;
+            }
+        """)
+        layout.addWidget(self.key_combo)
+
+        lbl2 = QLabel("后")
+        lbl2.setStyleSheet("color: #cdd6f4; font-size: 13px;")
+        layout.addWidget(lbl2)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["跳过一次", "连续跳过"])
+        self.mode_combo.setStyleSheet(self.key_combo.styleSheet())
+        layout.addWidget(self.mode_combo)
+
+        self.side_combo = QComboBox()
+        self.side_combo.addItems(["左键", "右键"])
+        self.side_combo.setStyleSheet(self.key_combo.styleSheet())
+        layout.addWidget(self.side_combo)
+
+        lbl3 = QLabel("cps booster")
+        lbl3.setStyleSheet("color: #cdd6f4; font-size: 13px;")
+        layout.addWidget(lbl3)
+
+        layout.addStretch()
+
+        self.update_keys(initial_keys or [])
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
+
+    def update_keys(self, keys: list, keep_current=True):
+        cur_text = self.key_combo.currentText() if keep_current else ""
+        self.key_combo.blockSignals(True)
+        self.key_combo.clear()
+        for k in keys:
+            self.key_combo.addItem(str(k))
+        if cur_text and cur_text in keys:
+            self.key_combo.setCurrentText(cur_text)
+        elif keys:
+            self.key_combo.setCurrentIndex(0)
+        self.key_combo.blockSignals(False)
+
+    def get_rule(self):
+        return {
+            "key": self.key_combo.currentText().strip(),
+            "mode": self.mode_combo.currentText().strip(),
+            "side": self.side_combo.currentText().strip()
+        }
+
+    def set_rule(self, key: str, mode: str, side: str):
+        self.key_combo.blockSignals(True)
+        self.mode_combo.blockSignals(True)
+        self.side_combo.blockSignals(True)
+        if key:
+            if self.key_combo.findText(key) == -1: self.key_combo.addItem(key)
+            self.key_combo.setCurrentText(key)
+        if mode in ["跳过一次", "连续跳过"]: self.mode_combo.setCurrentText(mode)
+        if side in ["左键", "右键"]: self.side_combo.setCurrentText(side)
+        self.key_combo.blockSignals(False)
+        self.mode_combo.blockSignals(False)
+        self.side_combo.blockSignals(False)
+
+    def _show_context_menu(self, pos):
+        menu = QMenu(self)
+        total_cards = len(getattr(self.parent_window, "booster_skip_cards", []))
+        del_action = QAction("删除当前卡片", menu)
+        del_action.setEnabled(total_cards > 1)
+        del_action.triggered.connect(lambda: self.request_delete.emit(self))
+        menu.addAction(del_action)
+        add_action = QAction("添加新卡片", menu)
+        add_action.triggered.connect(lambda: self.request_add.emit(self))
+        menu.addAction(add_action)
+        menu.exec(self.mapToGlobal(pos))
+
+
 
 class AutoClicker(QMainWindow):
     ui_status = pyqtSignal(str)
@@ -118,6 +290,14 @@ class AutoClicker(QMainWindow):
         self._runtime_cps_min = 5.0
         self._runtime_cps_max = 15.0
         self.extra_click_interval = 1.0 / 19.0
+
+        self.managed_keys = []
+        self.booster_skip_cards = []
+        self.booster_skip_state = {
+            "left": {"skip_once": False, "continuous_skip": False, "active_key": None},
+            "right": {"skip_once": False, "continuous_skip": False, "active_key": None}
+        }
+        self._skip_lock = threading.Lock()
         
         self._build_ui()
         self._connect_signals()
@@ -411,29 +591,54 @@ class AutoClicker(QMainWindow):
         tabs.addTab(booster_tab, "CPS Booster")
         
         settings_tab = QWidget()
-        settings_layout = QVBoxLayout(settings_tab)
-        settings_layout.setContentsMargins(2, 8, 2, 2)
-        settings_layout.setSpacing(10)
+        settings_main_layout = QVBoxLayout(settings_tab)
+        settings_main_layout.setContentsMargins(0, 0, 0, 0)
         
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        
+        scroll_content = QWidget()
+        settings_layout = QVBoxLayout(scroll_content)
+        
+        # 1. 顶部按键列表管理卡片
+        key_mgr_card = QFrame()
+        key_mgr_card.setObjectName("card")
+        key_mgr_layout = QVBoxLayout(key_mgr_card)
+        key_mgr_layout.addWidget(QLabel("按键列表管理"))
+        
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText("输入按键")
+        self.key_input.returnPressed.connect(self._on_add_key_clicked)
+        key_mgr_layout.addWidget(self.key_input)
+        
+        self.key_tags_container = QWidget()
+        self.key_tags_layout = QHBoxLayout(self.key_tags_container)
+        key_mgr_layout.addWidget(self.key_tags_container)
+        settings_layout.addWidget(key_mgr_card)
+
+        # 2. WASD 检测卡片
         settings_card = QFrame()
         settings_card.setObjectName("card")
         settings_card_layout = QVBoxLayout(settings_card)
-        settings_card_layout.setContentsMargins(16, 15, 16, 15)
-        settings_card_layout.setSpacing(12)
-        
         settings_title = QLabel("设置")
         settings_title.setObjectName("sectionTitle")
         settings_card_layout.addWidget(settings_title)
         
         self.wasd_left_check = QCheckBox("如果检测到WASD被按着，则执行左键Boost CPS")
         self.wasd_right_check = QCheckBox("如果检测到WASD被按着，则执行右键Boost CPS")
-        self.wasd_left_check.toggled.connect(lambda checked: setattr(self, 'wasd_left_boost_enabled', bool(checked)))
-        self.wasd_right_check.toggled.connect(lambda checked: setattr(self, 'wasd_right_boost_enabled', bool(checked)))
         settings_card_layout.addWidget(self.wasd_left_check)
         settings_card_layout.addWidget(self.wasd_right_check)
-        
         settings_layout.addWidget(settings_card)
+
+        # 3. Booster 跳过规则容器
+        self.booster_cards_layout = QVBoxLayout()
+        settings_layout.addLayout(self.booster_cards_layout)
+        self._add_booster_skip_card()
+
         settings_layout.addStretch()
+        scroll_area.setWidget(scroll_content)
+        settings_main_layout.addWidget(scroll_area)
         tabs.addTab(settings_tab, "设置")
         
         save_button = QPushButton("保存所有选项")
@@ -558,6 +763,50 @@ class AutoClicker(QMainWindow):
         self.fixed_widget.setVisible(self.cps_mode == "fixed")
         self.random_widget.setVisible(self.cps_mode == "random")
 
+
+    def _on_add_key_clicked(self):
+        k = self.key_input.text().strip().lower()
+        if k and k not in self.managed_keys:
+            self.managed_keys.append(k)
+            self._refresh_key_tags()
+            self._refresh_booster_card_key_choices()
+        self.key_input.clear()
+
+    def _remove_key(self, key_name: str):
+        if key_name in self.managed_keys:
+            self.managed_keys.remove(key_name)
+            self._refresh_key_tags()
+            self._refresh_booster_card_key_choices()
+
+    def _refresh_key_tags(self):
+        while self.key_tags_layout.count() > 0:
+            item = self.key_tags_layout.takeAt(0)
+            if item.widget(): item.widget().deleteLater()
+        for k in self.managed_keys:
+            tag = KeyTagWidget(k, self)
+            tag.deleted.connect(self._remove_key)
+            self.key_tags_layout.addWidget(tag)
+        self.key_tags_layout.addStretch()
+
+    def _refresh_booster_card_key_choices(self):
+        for card in self.booster_skip_cards: card.update_keys(self.managed_keys)
+
+    def _add_booster_skip_card(self, rule_data=None):
+        if not isinstance(rule_data, dict):
+            rule_data = None
+        card = BoosterSkipCard(self, self.managed_keys)
+        card.request_delete.connect(self._delete_booster_skip_card)
+        card.request_add.connect(self._add_booster_skip_card)
+        if rule_data: card.set_rule(rule_data.get("key", ""), rule_data.get("mode", ""), rule_data.get("side", ""))
+        self.booster_skip_cards.append(card)
+        self.booster_cards_layout.addWidget(card)
+
+    def _delete_booster_skip_card(self, card):
+        if len(self.booster_skip_cards) > 1:
+            self.booster_skip_cards.remove(card)
+            self.booster_cards_layout.removeWidget(card)
+            card.deleteLater()
+
     def save_config(self):
         try:
             self.wasd_left_boost_enabled = bool(self.wasd_left_check.isChecked()) if hasattr(self, 'wasd_left_check') else bool(getattr(self, 'wasd_left_boost_enabled', False))
@@ -583,6 +832,8 @@ class AutoClicker(QMainWindow):
                 "booster_right_use_random": self.booster_right_random_check.isChecked(),
                 "wasd_left_boost_enabled": self.wasd_left_boost_enabled,
                 "wasd_right_boost_enabled": self.wasd_right_boost_enabled,
+                "managed_keys": self.managed_keys,
+                "booster_skip_rules": [card.get_rule() for card in self.booster_skip_cards],
             }
             with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=4, ensure_ascii=False)
@@ -644,6 +895,19 @@ class AutoClicker(QMainWindow):
                 self.wasd_right_check.setChecked(self.wasd_right_boost_enabled)
             self.on_left_random_toggle(self.booster_left_random_check.isChecked())
             self.on_right_random_toggle(self.booster_right_random_check.isChecked())
+
+            self.managed_keys = [str(k) for k in config.get("managed_keys", [])]
+            self._refresh_key_tags()
+            
+            for card in list(self.booster_skip_cards):
+                self.booster_cards_layout.removeWidget(card)
+                card.deleteLater()
+            self.booster_skip_cards.clear()
+            for rule in config.get("booster_skip_rules", []):
+                self._add_booster_skip_card(rule)
+            if not self.booster_skip_cards:
+                self._add_booster_skip_card()
+            self._refresh_booster_card_key_choices()
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载配置失败：{e}")
 
@@ -747,18 +1011,39 @@ class AutoClicker(QMainWindow):
         def on_press(key):
             if self._closing:
                 return
-            # Track WASD state only. The CPS Booster toggle is the master
-            # switch and must never be flipped from here.
+            # Track WASD state only.
             try:
+                k_names = set()
                 if isinstance(key, KeyCode) and key.char:
-                    c = key.char.lower()
-                    if c in ['w', 'a', 's', 'd']:
-                        with self._wasd_lock:
-                            self._wasd_pressed.add(c)
-                elif isinstance(key, Key):
-                    pass
-            except Exception:
-                pass
+                    k_names.add(key.char.lower())
+                if hasattr(key, "name") and key.name:
+                    k_names.add(key.name.lower())
+                # also support display name conversion or direct string matching
+                disp = self.key_to_display(key).lower()
+                k_names.add(disp)
+
+                if any(k in ['w', 'a', 's', 'd'] for k in k_names):
+                    for k in ['w', 'a', 's', 'd']:
+                        if k in k_names:
+                            with self._wasd_lock: self._wasd_pressed.add(k)
+
+                with self._skip_lock:
+                    for side in ["left", "right"]:
+                        st = self.booster_skip_state[side]
+                        if st["continuous_skip"] and any(k in self.managed_keys for k in k_names) and not (st["active_key"] in k_names):
+                            st["continuous_skip"] = False
+                            st["active_key"] = None
+                    for card in self.booster_skip_cards:
+                        r = card.get_rule()
+                        rule_k = r["key"].lower()
+                        if rule_k in k_names:
+                            side = "left" if "左" in r["side"] else "right"
+                            if r["mode"] == "跳过一次":
+                                self.booster_skip_state[side]["skip_once"] = True
+                            else:
+                                self.booster_skip_state[side]["continuous_skip"] = True
+                                self.booster_skip_state[side]["active_key"] = rule_k
+            except Exception: pass
             if self.setting_hotkey:
                 if key == Key.esc:
                     self.ui_cancel_hotkey.emit()
@@ -860,9 +1145,13 @@ class AutoClicker(QMainWindow):
         self.mouse_listener.start()
 
     def _booster_should_fire(self, side):
-        """CPS Booster 栏目里的开关是总开关，这里只是附加条件：
-        设置里对应侧的 WASD 检测开着时，必须真的按着 WASD 才执行 booster；
-        检测关着时，每次点击都照常执行。本函数不会改动任何 enabled 状态。"""
+        with self._skip_lock:
+            st = self.booster_skip_state[side]
+            if st["skip_once"]:
+                st["skip_once"] = False
+                return False
+            if st["continuous_skip"]:
+                return False
         if side == "left":
             wasd_required = self.wasd_left_boost_enabled
         else:
